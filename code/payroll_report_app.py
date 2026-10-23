@@ -44,3 +44,96 @@ Test it: pytest tests/test_pipeline.py -k app
 #
 # What the page does NOT do: cleaning, grouping, pivoting. If you find yourself
 # writing a groupby or a pivot_table here, that logic belongs in the package.
+import streamlit as st
+from payroll.extract import load_employees, load_export
+from payroll.summarize import build_history
+from payroll.summarize import summarize_employees
+from payroll.reshape import hours_grid, missed_weeks, pay_by_month
+
+st.title("Salt City Coffee — Quarterly Payroll Report")
+st.write("Upload your weekly payroll exports to view the quarterly report.")
+
+roster = load_employees()
+
+uploads = st.file_uploader(
+    "Upload payroll exports",
+    key="exports",
+    accept_multiple_files=True
+)
+
+if uploads:
+    history = build_history(
+        [load_export(u) for u in uploads],
+        roster
+    )
+
+    unmatched = history[history["department"].isna()]
+
+    if not unmatched.empty:
+        st.warning(
+            "Unmatched employee IDs: "
+            + ", ".join(unmatched["employeeid"].astype(str).unique())
+        )
+
+    history = history.dropna(subset=["department"])
+
+    departments = ["All"] + sorted(history["department"].unique().tolist())
+
+    department = st.selectbox(
+        "Department",
+        departments,
+        key="department"
+    )
+
+    start = history["pay_date"].min().date()
+    end = history["pay_date"].max().date()
+
+    dates = st.date_input(
+        "Pay date range",
+        value=(start, end),
+        key="dates"
+    )
+
+    selected = history.copy()
+
+    if department != "All":
+        selected = selected[selected["department"] == department]
+
+    if len(dates) == 2:
+        selected = selected[
+            (selected["pay_date"].dt.date >= dates[0])
+            & (selected["pay_date"].dt.date <= dates[1])
+        ]
+
+    st.subheader("Quarterly Payroll Summary")
+
+    c1, c2, c3, c4 = st.columns(4)
+
+    c1.metric("Weeks", selected["week_ending"].nunique())
+    c2.metric("Employees", selected["employee_id"].nunique())
+    c3.metric("Total hours", f'{selected["hours_worked"].sum():,.2f}')
+    c4.metric("Total gross pay", f'${selected["gross_pay"].sum():,.2f}')
+
+    monthly = pay_by_month(selected)
+
+    st.subheader("Pay by Month")
+    st.bar_chart(monthly, x="month")
+
+    st.subheader("Employee Summary")
+    st.dataframe(summarize_employees(selected))
+
+    grid = hours_grid(selected)
+
+    st.subheader("Hours by Week")
+    st.dataframe(grid)
+
+    st.subheader("Missed Weeks")
+    st.dataframe(missed_weeks(grid))
+
+    st.download_button(
+        "Download Monthly Payroll CSV",
+        data=monthly.to_csv(index=False),
+        file_name="monthly_payroll.csv",
+        mime="text/csv",
+        key="download"
+    )
