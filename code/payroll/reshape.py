@@ -42,7 +42,6 @@ def hours_grid(history: pd.DataFrame) -> pd.DataFrame:
 )
 
     return grid.reset_index().sort_values("employee_id").reset_index(drop=True)
-  
 
 
 def missed_weeks(grid: pd.DataFrame) -> pd.DataFrame:

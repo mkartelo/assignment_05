@@ -36,11 +36,12 @@ def format_name(names: pd.Series) -> pd.Series:
     Strip each part, then join them back together in the other order with a
     space between. Same `.str` toolkit as `clean_employee_id`; no `apply`.
     """
-    
+
     parts = names.str.split(",", n=1)
     last = parts.str[0].str.strip()
     first = parts.str[1].str.strip()
     return first + " " + last
+
 
 def add_roster(history: pd.DataFrame, employees: pd.DataFrame) -> pd.DataFrame:
     """Return the history with two roster columns added: display_name, department.
@@ -58,11 +59,12 @@ def add_roster(history: pd.DataFrame, employees: pd.DataFrame) -> pd.DataFrame:
     history on `employee_id`. The history must have been through
     `add_clean_columns` first — the raw `employeeid` does not match anything.
     """
-   
+
     roster = employees.copy()
     roster["display_name"] = format_name(roster["name"])
     roster = roster[["employee_id", "display_name", "department"]]
     return history.merge(roster, on="employee_id", how="left")
+
 
 def build_history(exports: list, employees: pd.DataFrame) -> pd.DataFrame:
     """Raw exports and roster in; the finished quarter history out.
@@ -72,11 +74,12 @@ def build_history(exports: list, employees: pd.DataFrame) -> pd.DataFrame:
     their work. The result has every raw column, every column the steps add, and
     one row per row of every export.
     """
-    
+
     combined = combine_exports(exports)
     cleaned = add_clean_columns(combined)
     dated = add_date_parts(cleaned)
     return add_roster(dated, employees)
+
 
 def summarize_employees(history: pd.DataFrame) -> pd.DataFrame:
     """One row per employee: how many weeks, how many hours, how much pay.
